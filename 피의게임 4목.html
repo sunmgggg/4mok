@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>피의 게임 4목</title>
+    <style>
+        body {
+            background-color: #111;
+            color: #fff;
+            font-family: sans-serif;
+            text-align: center;
+        }
+        #board {
+            display: grid;
+            grid-template-columns: repeat(6, 60px);
+            grid-template-rows: repeat(6, 60px);
+            gap: 5px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .cell {
+            width: 60px;
+            height: 60px;
+            background-color: #444;
+            border: 2px solid #888;
+            border-radius: 10px;
+            cursor: pointer;
+            position: relative;
+        }
+        .chip {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+        }
+        .black { background-color: black; }
+        .white { background-color: white; }
+        .moving { outline: 3px solid yellow; }
+        #teamSelect {
+            margin-top: 20px;
+        }
+        #status {
+            margin-top: 10px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <h1>피의 게임 4목</h1>
+    <div id="teamSelect">
+        <p>돌 색을 선택하세요:</p>
+        <button onclick="chooseTeam('black')">⚫ 흑</button>
+        <button onclick="chooseTeam('white')">⚪ 백</button>
+    </div>
+    <div id="status" style="display:none;"></div>
+    <div id="board" style="display:none;"></div>
+    <script>
+        const boardSize = 6;
+        const mines = ["5-4","3-2","0-0","1-4","1-0","3-4","1-2","5-3","0-2","4-0","2-2","3-5","1-5","4-3","0-1","5-5","4-5","5-2"];
+        const maxChips = 7;
+
+        let currentPlayer = null;
+        let playerTeam = null;
+        let opponentTeam = null;
+        let selectedChip = null;
+
+        let chipCount = {
+            black: 0,
+            white: 0
+        };
+
+        const board = document.getElementById("board");
+        const teamSelect = document.getElementById("teamSelect");
+        const statusDiv = document.getElementById("status");
+
+        function chooseTeam(team) {
+            playerTeam = team;
+            opponentTeam = (team === "black") ? "white" : "black";
+            currentPlayer = playerTeam;
+            teamSelect.style.display = "none";
+            board.style.display = "grid";
+            statusDiv.style.display = "block";
+            createBoard();
+            updateStatus();
+        }
+
+        function createBoard() {
+            board.innerHTML = "";
+            for (let row = 0; row < boardSize; row++) {
+                for (let col = 0; col < boardSize; col++) {
+                    const cell = document.createElement("div");
+                    cell.classList.add("cell");
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    cell.addEventListener("click", handleClick);
+                    board.appendChild(cell);
+                }
+            }
+        }
+
+        function updateStatus() {
+            statusDiv.innerHTML = `
+                ⚫ 남은 돌: ${maxChips - chipCount.black} &nbsp;&nbsp;&nbsp;
+                ⚪ 남은 돌: ${maxChips - chipCount.white} &nbsp;&nbsp;&nbsp;
+                현재 차례: ${currentPlayer === "black" ? "⚫ 흑" : "⚪ 백"}
+            `;
+        }
+
+        function handleClick(e) {
+            const cell = e.currentTarget;
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.col);
+            const cellKey = `${row}-${col}`;
+
+            // 이동
+            if (selectedChip) {
+                const fromCell = selectedChip.parentElement;
+                const fr = parseInt(fromCell.dataset.row);
+                const fc = parseInt(fromCell.dataset.col);
+                const dr = Math.abs(fr - row);
+                const dc = Math.abs(fc - col);
+                if ((dr > 1 || dc > 1) || (dr === 0 && dc === 0)) {
+                    alert("한 칸만 이동할 수 있습니다.");
+                    return;
+                }
+                if (cell.children.length === 0) {
+                    cell.appendChild(selectedChip);
+                    selectedChip.classList.remove("moving");
+                    if (mines.includes(cellKey)) toggleColor(selectedChip);
+                    selectedChip = null;
+                    checkWin();
+                    currentPlayer = currentPlayer === "black" ? "white" : "black";
+                    updateStatus();
+                }
+                return;
+            }
+
+            // 빈 칸에 돌 놓기
+            if (cell.children.length === 0) {
+                if (chipCount[currentPlayer] >= maxChips) {
+                    alert("남은 돌이 없습니다. 기존 돌을 움직이세요.");
+                    return;
+                }
+                const chip = document.createElement("div");
+                chip.classList.add("chip", currentPlayer);
+                if (mines.includes(cellKey)) toggleColor(chip);
+                cell.appendChild(chip);
+                chipCount[currentPlayer]++;
+                checkWin();
+                currentPlayer = currentPlayer === "black" ? "white" : "black";
+                updateStatus();
+                return;
+            }
+
+            // 돌 선택
+            const chip = cell.querySelector(".chip");
+            if (!chip) return;
+            if (chip.classList.contains("black") || chip.classList.contains("white")) {
+                if (selectedChip) selectedChip.classList.remove("moving");
+                selectedChip = chip;
+                chip.classList.add("moving");
+            }
+        }
+
+        function toggleColor(chip) {
+            if (chip.classList.contains("black")) {
+                chip.classList.remove("black");
+                chip.classList.add("white");
+                chipCount.black--;
+                chipCount.white++;
+            } else {
+                chip.classList.remove("white");
+                chip.classList.add("black");
+                chipCount.white--;
+                chipCount.black++;
+            }
+        }
+
+        function checkWin() {
+            const cells = document.querySelectorAll(".cell");
+            const grid = [...Array(boardSize)].map(() => Array(boardSize).fill(null));
+            cells.forEach(cell => {
+                const r = parseInt(cell.dataset.row);
+                const c = parseInt(cell.dataset.col);
+                if (cell.children.length > 0) {
+                    grid[r][c] = cell.children[0].classList.contains("black") ? "black" : "white";
+                }
+            });
+
+            const directions = [[0,1],[1,0],[1,1],[1,-1]];
+            for (let r = 0; r < boardSize; r++) {
+                for (let c = 0; c < boardSize; c++) {
+                    const color = grid[r][c];
+                    if (!color) continue;
+                    for (let [dr, dc] of directions) {
+                        let count = 1;
+                        for (let k = 1; k < 4; k++) {
+                            const nr = r + dr * k;
+                            const nc = c + dc * k;
+                            if (nr < 0 || nc < 0 || nr >= boardSize || nc >= boardSize) break;
+                            if (grid[nr][nc] === color) count++;
+                        }
+                        if (count === 4) {
+                            alert(color.toUpperCase() + " 승리!");
+                            location.reload();
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
